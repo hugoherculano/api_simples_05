@@ -1,16 +1,42 @@
-import { Request, Response, Router } from 'express';
+import { Request, Response, NextFunction, Router } from 'express';
 
 import { v4 as uuid } from 'uuid';
 
 const route = Router()
 
-type typeClientBank = {
+interface typeCustomer  {
     name: string;
     cpf: string;
     id: string;
-    statement: []
+    statement: StatementOperation[]
 }
-const customers: typeClientBank[] = [];
+
+interface StatementOperation {
+  description: string;
+  amount: number;
+  created_at: Date;
+  type: string;
+}
+
+interface RequestAtData extends Request {
+    customer?: typeCustomer;
+}
+
+const customers: typeCustomer[] = [];
+
+function verifyIfExistsAccountCPF(request: RequestAtData, response: Response, next: NextFunction) {
+    const { cpf } = request.headers;
+
+    const customer = customers.find(item => item.cpf === cpf);
+
+    if(!customer) {
+        return response.status(400).json({ error: 'CPF not found!'})
+    }
+
+    request.customer = customer;
+
+    return next();
+}
 
 route.post('/account', (request: Request, response: Response) => {
     const {
@@ -34,16 +60,30 @@ route.post('/account', (request: Request, response: Response) => {
     return response.status(201).json({ messege: 'OK'});
 });
 
-route.get('/statement/:cpf', (request, response) => {
-    const { cpf } = request.params;
 
-    const customer = customers.find(item => item.cpf === cpf);
+route.get('/statement', verifyIfExistsAccountCPF, (request: RequestAtData, response: Response) => {
+    
+    const { customer } = request;
 
-    if(!customer) {
-        response.status(400).json({ error: 'CPF not found!'})
+    return response.status(200).json({ customer: customer?.statement });
+
+});
+
+route.post('/deposit', verifyIfExistsAccountCPF, (request: RequestAtData, response: Response) => {
+    const { description, amount } = request.body;
+    const { customer } = request;
+
+    const statementOperation: StatementOperation = {
+        description,
+        amount,
+        created_at: new Date(),
+        type: 'credit'
     }
 
-    response.status(200).json({ customer: customer?.statement })
+    customer?.statement.push(statementOperation);
+
+    return response.status(201).json({ success: 'Deposit completed!' });
+
 })
 
 export default route;
