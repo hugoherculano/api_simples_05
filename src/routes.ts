@@ -12,7 +12,7 @@ interface typeCustomer  {
 }
 
 interface StatementOperation {
-  description: string;
+  description?: string;
   amount: number;
   created_at: Date;
   type: string;
@@ -36,6 +36,22 @@ function verifyIfExistsAccountCPF(request: RequestAtData, response: Response, ne
     request.customer = customer;
 
     return next();
+}
+
+function getBalance(statement: StatementOperation[]) {
+
+    const balance = statement.reduce((acc, operation) => {
+
+        if(operation.type === 'credit') {
+            return acc + operation.amount;
+        } else {
+            return acc - operation.amount;
+        }
+
+    }, 0);
+
+    return balance;
+
 }
 
 route.post('/account', (request: Request, response: Response) => {
@@ -65,7 +81,11 @@ route.get('/statement', verifyIfExistsAccountCPF, (request: RequestAtData, respo
     
     const { customer } = request;
 
-    return response.status(200).json({ customer: customer?.statement });
+    if (!customer) {
+        return response.status(400).json({ error: 'Invalid customer data' });
+    }
+
+    return response.status(200).json({ customer: customer.statement });
 
 });
 
@@ -80,10 +100,39 @@ route.post('/deposit', verifyIfExistsAccountCPF, (request: RequestAtData, respon
         type: 'credit'
     }
 
-    customer?.statement.push(statementOperation);
+    if (!customer) {
+        return response.status(400).json({ error: 'Invalid customer data' });
+    }
+
+    customer.statement.push(statementOperation);
 
     return response.status(201).json({ success: 'Deposit completed!' });
 
+});
+
+route.post('/withdraw', verifyIfExistsAccountCPF, (request: RequestAtData, response: Response) => {
+    const { amount } = request.body;
+    const { customer } = request;
+
+    if (!customer) {
+        return response.status(400).json({ error: 'Invalid customer data' });
+    }
+
+    const balance = getBalance(customer.statement);
+
+    if(balance < amount) {
+        return response.status(400).json({ error: 'Insufficient funds!' });
+    }
+
+    const statementOperation: StatementOperation = {
+        amount,
+        created_at: new Date(),
+        type: 'debit'
+    }
+
+    customer.statement.push(statementOperation);
+
+    return response.status(201).json({ success: 'Withdraw completed!' });
 })
 
 export default route;
