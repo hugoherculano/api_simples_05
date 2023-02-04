@@ -78,4 +78,16 @@ route.post('/withdraw', verifyIfExistsAccountCPF, (request, response) => {
     customer.statement.push(statementOperation);
     return response.status(201).json({ success: 'Withdraw completed!' });
 });
+route.get('/statement/date', verifyIfExistsAccountCPF, (request, response) => {
+    const { customer } = request;
+    const { date } = request.query;
+    const dateFormat = new Date(date + ' 00:00');
+    if (!customer) {
+        return response.status(400).json({ error: 'Invalid customer data' });
+    }
+    const statement = customer.statement.filter((statement) => {
+        return statement.created_at.toDateString() === new Date(dateFormat).toDateString();
+    });
+    return response.status(200).json(statement);
+});
 exports.default = route;
